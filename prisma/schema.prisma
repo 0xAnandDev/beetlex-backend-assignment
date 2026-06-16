@@ -64,7 +64,7 @@ model User {
   bio          String?
   githubUrl    String?   @map("github_url")
   linkedinUrl  String?   @map("linkedin_url")
-  role         UserRole
+  role         UserRole  @default(participant)
   isVerified   Boolean   @default(false) @map("is_verified")
   isActive     Boolean   @default(true) @map("is_active")
   createdAt    DateTime  @default(now()) @map("created_at")
