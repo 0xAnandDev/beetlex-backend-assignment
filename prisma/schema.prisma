@@ -81,6 +81,7 @@ model User {
   scores              Score[]
   announcements       Announcement[]     @relation("AnnouncementAuthor")
   announcementReads   AnnouncementRead[]
+  refreshTokens       RefreshToken[]
 
   @@map("users")
 }
@@ -283,4 +284,18 @@ model AnnouncementRead {
   @@id([announcementId, userId])
   @@index([announcementId])
   @@map("announcement_reads")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
