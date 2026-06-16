@@ -5,6 +5,7 @@ import { prisma } from "./config/prisma";
 import { errorHandler } from "./middleware/error.middleware";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { eventRoutes } from "./modules/events/event.routes";
+import { registrationRoutes } from "./modules/registrations/registration.routes";
 import { successResponse } from "./utils/response";
 
 dotenv.config();
@@ -37,6 +38,7 @@ app.addHook("onClose", async (instance) => {
 // Register routes
 app.register(authRoutes, { prefix: "/auth" });
 app.register(eventRoutes, { prefix: "/events" });
+app.register(registrationRoutes, { prefix: "/events" });
 
 // Health check route
 app.get("/health", async (request, reply) => {
