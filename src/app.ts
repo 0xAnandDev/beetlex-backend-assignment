@@ -9,6 +9,7 @@ import { registrationRoutes } from "./modules/registrations/registration.routes"
 import { teamRoutes } from "./modules/teams/team.routes";
 import { projectRoutes } from "./modules/projects/project.routes";
 import { judgingRoutes } from "./modules/judging/judging.routes";
+import { announcementRoutes } from "./modules/announcements/announcement.routes";
 import { successResponse } from "./utils/response";
 
 dotenv.config();
@@ -43,6 +44,7 @@ app.register(authRoutes, { prefix: "/auth" });
 app.register(eventRoutes, { prefix: "/events" });
 app.register(registrationRoutes, { prefix: "/events" });
 app.register(teamRoutes, { prefix: "/events" });
+app.register(announcementRoutes, { prefix: "/events" });
 app.register(projectRoutes);
 app.register(judgingRoutes);
 
