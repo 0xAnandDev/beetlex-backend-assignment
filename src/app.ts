@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/error.middleware";
 import { authRoutes } from "./modules/auth/auth.routes";
 import { eventRoutes } from "./modules/events/event.routes";
 import { registrationRoutes } from "./modules/registrations/registration.routes";
+import { teamRoutes } from "./modules/teams/team.routes";
 import { successResponse } from "./utils/response";
 
 dotenv.config();
@@ -39,6 +40,7 @@ app.addHook("onClose", async (instance) => {
 app.register(authRoutes, { prefix: "/auth" });
 app.register(eventRoutes, { prefix: "/events" });
 app.register(registrationRoutes, { prefix: "/events" });
+app.register(teamRoutes, { prefix: "/events" });
 
 // Health check route
 app.get("/health", async (request, reply) => {
