@@ -234,17 +234,24 @@ curl http://localhost:3000/health
 
 ## 9. What I Would Do With More Time
 
-* **Redis Standing Leaderboard Cache**: Store ranking structures in a Redis Sorted Set (`ZSET`) to handle massive read spikes (5,000+ parallel users) with `O(log(N))` performance.
-* **Asynchronous Jobs Queue**: Use BullMQ + Redis to manage resource-heavy operations like sending registration emails or generating submission certificates.
-* **S3 Presigned URL Uploads**: Replace the simulated PDF deck upload with a direct-to-S3 presigned URL pipeline to avoid proxying file binaries through the application server.
-* **Integration Tests Concurrency Check**: Write integration tests using parallel promises to simulate and verify database locking behaviors against race conditions.
+While the core focus of this implementation was placed on delivering a production-ready architecture, robust Dockerized deployment, database design, API implementation, schema validation, authentication, authorization, and system design, the following engineering enhancements would be added in future iterations:
+* **Extensive Automated Testing Suite**:
+  - **Unit Testing**: Implement comprehensive unit tests targeting service-layer business logic (such as team membership transitions, leader assignment, and event time window checks).
+  - **Integration Testing**: Add integration tests covering complete user flows including authentication session rotation, registration cancellations, and leaderboard calculation correctness.
+  - **Concurrency & Race-Condition Testing**: Write tests using concurrent asynchronous execution blocks to verify database locking behaviors against race conditions on team joining operations and event registration limits.
+  - **End-to-End Testing**: Set up an end-to-end testing pipeline integrated within CI/CD workflows to run automatically on pull requests.
+* **Performance & Load Testing**: Execute load testing profiles targeting high-contention spikes (e.g., thousands of simultaneous requests hitting the leaderboard or flash registration openings).
+* **Redis Caching**: Cache the event standings in a Redis Sorted Set (`ZSET`) to resolve reads in `O(log(N))` time and protect PostgreSQL CPU limits under scale.
+* **Asynchronous Workers**: Deploy BullMQ alongside Redis to handle non-blocking asynchronous task execution (such as email dispatching and certificate generation).
+* **Direct Object Storage Uploads**: Transition the pitch deck upload to a direct-to-S3 presigned URL flow to keep binary file transfer payloads completely isolated from the API server.
 
 ---
 
 ## 10. Known Limitations
 
-* **Simulated Deck Uploads**: The pitch deck endpoint validates filename parameters and stores a mock file URL in the database instead of transferring physical objects to cloud storage.
-* **Prisma In-Memory Sorting**: Leaderboard standings are compiled and sorted in the application layer. While efficient for the typical scope of hackathons, extremely large datasets would require sorting inside PostgreSQL or utilizing elastic search indexes.
+* **Automated Test Coverage**: Extensive automated test suites and load testing benchmarks were intentionally left for a subsequent hardening phase, prioritizing the core architectural execution and system design.
+* **Simulated Deck Uploads**: The pitch deck submission endpoint validates parameters and stores a mock file URL rather than streaming binary objects to external cloud storage.
+* **In-Memory Sorting**: Leaderboard standings are compiled and sorted dynamically in the service layer. While highly efficient and appropriate for standard hackathon event scales, sorting large datasets would be delegated to PostgreSQL query logic or dedicated caching systems.
 
 ---
 
