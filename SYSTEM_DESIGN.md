@@ -15,7 +15,7 @@ Serving 5,000 concurrent participants reading the leaderboard while 20 judges co
 
 ### 2. Caching Strategy
 * **Data Structure:** A Redis Sorted Set (`leaderboard:event:<eventId>`) where the project's `averageScore` is the score and `projectId` is the member. Project metadata (e.g., title, team name) is stored in a separate Redis Hash (`project:metadata:<eventId>`) to save memory.
-* **Cache TTL:** `3600` seconds (1 hour). The cache is persistent during the active judging phase and fully updated in-place.
+* **Cache TTL:** `60` seconds (1 hour). The cache is persistent during the active judging phase and fully updated in-place.
 * **Cache Invalidation & In-Place Updates:**
   When a judge submits/updates a score:
   1. Save the score in the database within a transaction.
@@ -73,7 +73,7 @@ Rate limiting is implemented at two layers of the stack:
 To handle high sustained write loads on a 16GB RAM database server:
 * **PostgreSQL Configuration (`postgresql.conf`):**
   ```ini
-  max_connections = 500
+  max_connections = 200
   shared_buffers = 4GB             # 25% of RAM
   work_mem = 16MB                  # Faster in-memory sorting
   maintenance_work_mem = 512MB
