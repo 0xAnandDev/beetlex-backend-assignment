@@ -1,27 +1,248 @@
-# BeetleX Backend Assignment
+# BeetleX Hackathon Platform — Backend API
 
-A backend service built with TypeScript, Express, and Prisma.
+This repository contains the backend implementation for the BeetleX Hackathon Platform, built using **Fastify**, **TypeScript**, **PostgreSQL**, **Prisma ORM**, **Zod**, and **Docker**.
 
-## Getting Started
+The platform enables organizers to manage events, participants to form teams, submit projects, and upload pitch decks, judges to evaluate submissions, and displays a real-time, targeted leaderboard and announcements delivery system.
 
-1. Copy `.env.example` to `.env` and configure your environment variables.
-2. Start the database service:
+---
+
+## 1. Project Overview & Features
+
+### Core Implemented Modules
+* **Authentication**: JWT access token validation paired with secure HttpOnly, secure, path-restricted Refresh Token rotation and active session invalidation (logout).
+* **Events**: Automated slug generation, pagination, and role-based event lifecycle controls (draft, open, active, judging, closed).
+* **Registrations**: Slot capacity bounds, registration deadline windows, and soft-cancellation tracking.
+* **Teams**: Direct link-based team membership (`Registration.teamId`) avoiding synchronization discrepancies, leader designation, and automated leadership handoff.
+* **Projects & Submissions**: Submissions locked to event deadlines. Supports pitch deck upload simulations (.pdf only) and enforces a limit of one project per team.
+* **Judging & Scoring**: Assignment check to ensure only assigned judges evaluate projects, score boundaries (1-10) per criteria, and average score metrics.
+* **Announcements**: Draft-to-published workflow, target visibility filtering strictly resolved at the query level (`all`, `participants`, `judges`, `organizers`), and idempotent read tracking.
+* **Leaderboard**: Deterministic rank orderings calculated dynamically from judge score averages with an automatic tie-breaker (earlier `submittedAt` wins).
+
+---
+
+## 2. Architecture Overview
+
+### Project Directory Structure
+```
+src/
+├── app.ts                         # Application entrypoint & plugin boots
+├── config/
+│   └── prisma.ts                  # Shared Prisma client instantiation
+├── middleware/
+│   ├── auth.middleware.ts         # JWT authentication verify hook
+│   ├── error.middleware.ts        # Fastify global error handler
+│   ├── role.middleware.ts         # RBAC helper using UserRole enums
+│   └── validate.middleware.ts     # Zod schema input validator hook
+├── modules/
+│   ├── announcements/             # Broadcasts & read tracking
+│   ├── auth/                      # Registration, login, & session rotation
+│   ├── events/                    # Hackathon event management
+│   ├── judges/                    # Event judge assignments
+│   ├── judging/                   # Scoring & evaluations
+│   ├── leaderboard/               # Dynamic ranked standings
+│   ├── projects/                  # Submission & deck mock uploads
+│   ├── registrations/             # Event participant registration
+│   ├── teams/                     # Team creation & joining
+│   └── users/                     # User metadata management
+└── utils/
+    ├── errors.ts                  # AppError class definition
+    ├── hash.ts                    # BCrypt password helpers
+    ├── response.ts                # Unified JSON success responses
+    └── slug.ts                    # Slugging helpers for events
+```
+
+### Layer Responsibilities
+* **Routing (`*.routes.ts`)**: Registers Fastify endpoints, binding input validators and auth hooks to the pre-handler chain.
+* **Controller (`*.controller.ts`)**: Decouples network layers. Extracts path, query, and body params, forwards them to the service layer, and wraps outputs in the standard `successResponse` envelope.
+* **Service (`*.service.ts`)**: Holds 100% of the business logic. Runs database validations, checks permissions, handles transactions, and executes domain computations.
+* **Validation (`*.validation.ts`)**: Declares Zod schemas to sanitize and validate route variables, payloads, and query parameters before reaching logic pools.
+
+---
+
+## 3. Setup & Run Instructions
+
+### Prerequisites
+* **Docker** and **Docker Compose** installed.
+
+### Primary Setup (Docker Compose)
+The entire stack is configured to build and spin up automatically with a single command. 
+1. Copy the example environment template:
    ```bash
-   docker-compose up -d
+   cp .env.example .env
    ```
-3. Install dependencies:
+2. Run the compose script:
+   ```bash
+   docker-compose up --build
+   ```
+This command will:
+- Launch the PostgreSQL database container.
+- Perform health-checks on PostgreSQL using `pg_isready` until it is fully ready.
+- Execute all pending database migrations (`npx prisma migrate deploy`) automatically.
+- Generate the Prisma Client typing libraries.
+- Compile TypeScript to JavaScript and boot the Fastify API.
+- Expose the API on `http://localhost:3000`.
+
+### Local Development Setup (Secondary Option)
+If you prefer running the API server directly on your host machine:
+1. Start only the PostgreSQL database container:
+   ```bash
+   docker-compose up -d postgres
+   ```
+2. Install dependencies:
    ```bash
    npm install
    ```
-4. Run database migrations:
+3. Run migrations and generate the client:
    ```bash
    npx prisma migrate dev
    ```
-5. Start the development server:
+4. Start the development server (with hot-reloading):
    ```bash
    npm run dev
    ```
 
-## Project Structure
+### Verification
+Ensure the server is running healthy by hitting the health endpoint:
+```bash
+curl http://localhost:3000/health
+```
+**Expected Response:**
+```json
+{
+  "success": true,
+  "message": "API is healthy",
+  "data": {
+    "timestamp": "2026-06-17T05:27:13.573Z"
+  }
+}
+```
 
-Refer to [SYSTEM_DESIGN.md](SYSTEM_DESIGN.md) for architectural and directory details.
+---
+
+## 4. Complete API Endpoint List
+
+### Authentication Module (`/auth`)
+* `POST /auth/register` - Creates a new user profile.
+* `POST /auth/login` - Authenticates user credentials, sets refresh token cookie, and returns access token.
+* `POST /auth/refresh` - Rotates expired access token using the HttpOnly refresh token.
+* `POST /auth/logout` - Revokes refresh token session and clears authentication cookies.
+* `GET /auth/me` - Retrieves the profile details of the currently authenticated user.
+* `PATCH /auth/me` - Updates the current user's profile information.
+
+### Events Module (`/events`)
+* `POST /events` - Creates a new hackathon event (Organizers & Admins only).
+* `GET /events` - Lists events with pagination, sorting, and status filters.
+* `GET /events/:id` - Retrieves a detailed view of an event by its ID or slug.
+* `PATCH /events/:id` - Updates event metadata (Event Organizer & Admins only).
+* `DELETE /events/:id` - Deletes/closes an event (Event Organizer & Admins only).
+
+### Registrations Module (`/events/:id/register`, `/events/:id/registration`)
+* `POST /events/:id/register` - Registers the authenticated user for the event.
+* `GET /events/:id/registration` - Retrieves the current user's registration status.
+* `DELETE /events/:id/registration` - Cancels the user's registration (soft-delete).
+* `GET /events/:id/registrations` - Lists all registrations for an event (Organizers & Admins only).
+
+### Teams Module (`/events/:eventId/teams`)
+* `POST /events/:eventId/teams` - Creates a new team with the user set as the leader.
+* `POST /events/:eventId/teams/:teamId/join` - Joins an existing team.
+* `DELETE /events/:eventId/teams/:teamId/leave` - Leaves the team (automatically handles leadership handoff).
+* `GET /events/:eventId/teams/:teamId` - Gets team details and its current member list.
+* `GET /events/:eventId/teams` - Lists all teams registered in the event.
+
+### Projects & Submissions Module (`/teams/:teamId/project`, `/events/:eventId/projects`)
+* `POST /teams/:teamId/project` - Creates a draft project submission for a team.
+* `GET /teams/:teamId/project` - Gets the project details (accessible to team members/judges/organizers).
+* `PATCH /teams/:teamId/project` - Edits project draft details (Team members only).
+* `POST /teams/:teamId/project/submit` - Locks project from further edits and sets the submission timestamp.
+* `POST /teams/:teamId/project/deck` - Simulates uploading a PDF pitch deck.
+* `GET /events/:eventId/projects` - Retrieves all submitted projects for evaluation.
+
+### Judging & Scoring Module (`/judge`, `/events/:eventId/scores`)
+* `GET /judge/projects` - Lists all projects assigned to the logged-in judge.
+* `GET /judge/projects/:projectId` - Gets project details along with the judge's score.
+* `POST /judge/projects/:projectId/score` - Submits scores (1-10) for innovation, technical, impact, and presentation.
+* `PATCH /judge/projects/:projectId/score` - Updates scores (blocked once the event is closed).
+* `GET /events/:eventId/scores` - Gets a breakdown of all scores across projects (Organizers & Admins only).
+
+### Announcements Module (`/events/:eventId/announcements`)
+* `POST /events/:eventId/announcements` - Creates a draft announcement (Organizers & Admins only).
+* `POST /events/:eventId/announcements/:annId/publish` - Publishes an announcement and sets `publishedAt` (Organizers & Admins only).
+* `GET /events/:eventId/announcements` - Lists published announcements matching the user's targeted role.
+* `POST /events/:eventId/announcements/:annId/read` - Marks an announcement as read (idempotent).
+* `GET /events/:eventId/announcements/unread-count` - Returns the count of unread announcements visible to the user.
+
+### Leaderboard Module (`/events/:eventId/leaderboard`)
+* `GET /events/:eventId/leaderboard` - Retrieves ranked leaderboard standings (Organizers/Admins can access anytime; others can only access if the event status is `closed`).
+
+---
+
+## 5. Database Schema & Entities
+
+```mermaid
+erDiagram
+    User ||--o{ Registration : registers
+    User ||--o{ Team : leads
+    User ||--o{ Score : scores
+    User ||--o{ RefreshToken : has
+    Event ||--o{ Registration : receives
+    Event ||--o{ Team : hosts
+    Event ||--o{ Project : compiles
+    Event ||--o{ EventJudge : assigns
+    Team ||--|| Project : submits
+    Team ||--o{ Registration : groups
+    Project ||--o{ Score : evaluated-by
+    EventJudge ||--// User : represents-judge
+    Announcement ||--o{ AnnouncementRead : tracks-reads
+    User ||--o{ AnnouncementRead : reads-announcement
+```
+
+### Core Entities & Relationships
+1. **User**: Handled via `UserRole` enum (`participant`, `judge`, `organizer`, `admin`).
+2. **Event**: Configured with strict datetime windows (e.g., `registrationOpen`/`Close`, `eventStart`/`End`, and `submissionDeadline`).
+3. **Registration**: Joins `User` to `Event`. Acts as the single source of truth for **Team Membership** via a nullable `teamId` FK.
+4. **Team**: Contains team name and links to the leader (`User`) and the event.
+5. **Project**: Tied uniquely to a `Team` (`teamId`) for an `Event` (`eventId`).
+6. **Score**: Tracks assessments per criterion. Unique on `(projectId, judgeId)`.
+7. **Announcement**: Targeted to a specific audience via `AnnouncementTarget` (`all`, `participants`, `judges`, `organizers`).
+8. **AnnouncementRead**: Tracks read events using a composite primary key: `(announcementId, userId)`.
+
+---
+
+## 6. Authentication & Authorization
+
+* **JWT Strategy**: Dual-token architecture. Access tokens are passed in the `Authorization` header (`Bearer <token>`). Short expiration times (e.g., 15m) limit compromise windows.
+* **Refresh Tokens**: Saved in the database and linked to the active session. The token is delivered to the client via an HTTP-only, secure, same-site cookie. It is rotated on every refresh request, and logouts revoke the token in the database to prevent reuse.
+* **Role-Based Access Control (RBAC)**: Handled dynamically via the `authorize(allowedRoles: UserRole[])` pre-handler hook, ensuring route-level isolation for administrative and evaluation endpoints.
+
+---
+
+## 7. Design Decisions & Trade-offs
+
+* **Why Fastify?** Fastify was chosen over Express for its built-in schema serialization (speed), native TypeScript support, modular plugin system, and structured hook lifecycle, which makes request preprocessing (`preHandler`) highly maintainable.
+* **Single Source of Truth for Team Membership**: Instead of maintaining a separate `TeamMember` model alongside registration, team membership is strictly tracked using `Registration.teamId`. This prevents sync bugs, avoids table join updates on leave/join, and simplifies the codebase.
+* **Soft Cancellations**: Deleting registrations makes it difficult to audit historical records and manage slot metrics. Setting status to `cancelled` preserves logs while freeing up slots cleanly.
+* **Service-Layer Dynamic Leaderboard Calculation**: Ranks are computed on-read by aggregating scores in the service layer instead of relying on database generated columns. This avoids heavy SQL triggers, enables clean formatting, and handles complex sorting (like the `submittedAt` tie-breaker) dynamically in Node.js.
+
+---
+
+## 8. What I Would Do With More Time
+
+* **Redis Standing Leaderboard Cache**: Store ranking structures in a Redis Sorted Set (`ZSET`) to handle massive read spikes (5,000+ parallel users) with `O(log(N))` performance.
+* **Asynchronous Jobs Queue**: Use BullMQ + Redis to manage resource-heavy operations like sending registration emails or generating submission certificates.
+* **S3 Presigned URL Uploads**: Replace the simulated PDF deck upload with a direct-to-S3 presigned URL pipeline to avoid proxying file binaries through the application server.
+* **Integration Tests Concurrency Check**: Write integration tests using parallel promises to simulate and verify database locking behaviors against race conditions.
+
+---
+
+## 9. Known Limitations
+
+* **Simulated Deck Uploads**: The pitch deck endpoint validates filename parameters and stores a mock file URL in the database instead of transferring physical objects to cloud storage.
+* **Prisma In-Memory Sorting**: Leaderboard standings are compiled and sorted in the application layer. While efficient for the typical scope of hackathons, extremely large datasets would require sorting inside PostgreSQL or utilizing elastic search indexes.
+
+---
+
+## 10. Submission Notes
+
+* Spin up the entire stack with `docker-compose up --build`. No manual configuration is required.
+* Database migrations deploy automatically on startup via `docker-entrypoint.sh`.
+* Port `3000` exposes the API, and the `/health` endpoint is available to check readiness.
