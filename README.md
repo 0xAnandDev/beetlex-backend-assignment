@@ -20,7 +20,19 @@ The platform enables organizers to manage events, participants to form teams, su
 
 ---
 
-## 2. Architecture Overview
+## 2. Technology Stack
+
+- **Framework**: Fastify
+- **Language**: TypeScript
+- **Database**: PostgreSQL
+- **ORM**: Prisma ORM
+- **Validation**: Zod
+- **Authentication**: JWT (Access Tokens) & HTTP-Only Cookies (Refresh Tokens)
+- **Deployment**: Docker & Docker Compose
+
+---
+
+## 3. Architecture Overview
 
 ### Project Directory Structure
 ```
@@ -59,7 +71,7 @@ src/
 
 ---
 
-## 3. Setup & Run Instructions
+## 4. Setup & Run Instructions
 
 ### Prerequisites
 * **Docker** and **Docker Compose** installed.
@@ -119,7 +131,7 @@ curl http://localhost:3000/health
 
 ---
 
-## 4. Complete API Endpoint List
+## 5. Complete API Endpoint List
 
 ### Authentication Module (`/auth`)
 * `POST /auth/register` - Creates a new user profile.
@@ -176,25 +188,20 @@ curl http://localhost:3000/health
 
 ---
 
-## 5. Database Schema & Entities
+## 6. Database Schema & Entities
 
-```mermaid
-erDiagram
-    User ||--o{ Registration : registers
-    User ||--o{ Team : leads
-    User ||--o{ Score : scores
-    User ||--o{ RefreshToken : has
-    Event ||--o{ Registration : receives
-    Event ||--o{ Team : hosts
-    Event ||--o{ Project : compiles
-    Event ||--o{ EventJudge : assigns
-    Team ||--|| Project : submits
-    Team ||--o{ Registration : groups
-    Project ||--o{ Score : evaluated-by
-    EventJudge ||--// User : represents-judge
-    Announcement ||--o{ AnnouncementRead : tracks-reads
-    User ||--o{ AnnouncementRead : reads-announcement
-```
+### Database Relationships
+- **User → Registration** (One-to-Many)
+- **Event → Registration** (One-to-Many)
+- **Event → Team** (One-to-Many)
+- **Team → Project** (One-to-One)
+- **Project → Score** (One-to-Many)
+- **User → Score** (One-to-Many)
+- **User → RefreshToken** (One-to-Many)
+- **Announcement → AnnouncementRead** (One-to-Many)
+- **User → AnnouncementRead** (One-to-Many)
+- **Event → EventJudge** (One-to-Many)
+- **User (Judge) → EventJudge** (One-to-Many)
 
 ### Core Entities & Relationships
 1. **User**: Handled via `UserRole` enum (`participant`, `judge`, `organizer`, `admin`).
@@ -208,7 +215,7 @@ erDiagram
 
 ---
 
-## 6. Authentication & Authorization
+## 7. Authentication & Authorization
 
 * **JWT Strategy**: Dual-token architecture. Access tokens are passed in the `Authorization` header (`Bearer <token>`). Short expiration times (e.g., 15m) limit compromise windows.
 * **Refresh Tokens**: Saved in the database and linked to the active session. The token is delivered to the client via an HTTP-only, secure, same-site cookie. It is rotated on every refresh request, and logouts revoke the token in the database to prevent reuse.
@@ -216,7 +223,7 @@ erDiagram
 
 ---
 
-## 7. Design Decisions & Trade-offs
+## 8. Design Decisions & Trade-offs
 
 * **Why Fastify?** Fastify was chosen over Express for its built-in schema serialization (speed), native TypeScript support, modular plugin system, and structured hook lifecycle, which makes request preprocessing (`preHandler`) highly maintainable.
 * **Single Source of Truth for Team Membership**: Instead of maintaining a separate `TeamMember` model alongside registration, team membership is strictly tracked using `Registration.teamId`. This prevents sync bugs, avoids table join updates on leave/join, and simplifies the codebase.
@@ -225,7 +232,7 @@ erDiagram
 
 ---
 
-## 8. What I Would Do With More Time
+## 9. What I Would Do With More Time
 
 * **Redis Standing Leaderboard Cache**: Store ranking structures in a Redis Sorted Set (`ZSET`) to handle massive read spikes (5,000+ parallel users) with `O(log(N))` performance.
 * **Asynchronous Jobs Queue**: Use BullMQ + Redis to manage resource-heavy operations like sending registration emails or generating submission certificates.
@@ -234,14 +241,14 @@ erDiagram
 
 ---
 
-## 9. Known Limitations
+## 10. Known Limitations
 
 * **Simulated Deck Uploads**: The pitch deck endpoint validates filename parameters and stores a mock file URL in the database instead of transferring physical objects to cloud storage.
 * **Prisma In-Memory Sorting**: Leaderboard standings are compiled and sorted in the application layer. While efficient for the typical scope of hackathons, extremely large datasets would require sorting inside PostgreSQL or utilizing elastic search indexes.
 
 ---
 
-## 10. Submission Notes
+## 11. Submission Notes
 
 * Spin up the entire stack with `docker-compose up --build`. No manual configuration is required.
 * Database migrations deploy automatically on startup via `docker-entrypoint.sh`.
